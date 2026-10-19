@@ -1,0 +1,13 @@
+{
+  "name": "weekly-schedule-pwa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A mobile-first weekly schedule PWA for students.",
+  "scripts": {
+    "start": "node server.js",
+    "preview": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
