@@ -261,6 +261,27 @@ body.dark .brand-mark {
   width: 100%;
 }
 
+.todo-add-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 0.72em;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.todo-add-button:hover {
+  background: var(--active);
+  color: var(--active-text);
+}
+
 .mini-stepper {
   display: grid;
   grid-template-columns: 22px 20px 16px 20px;
@@ -328,6 +349,7 @@ body.dark .brand-mark {
   grid-template-columns: 84px repeat(7, minmax(132px, 1fr));
   min-width: 1104px;
   background: var(--surface);
+  zoom: var(--ui-zoom, 1);
 }
 
 .grid-head,
@@ -499,6 +521,106 @@ body.dark .brand-mark {
   color: var(--event-line);
 }
 
+.slot-card.todo {
+  background: #e8f0d9;
+  color: #55703e;
+}
+
+.slot-card.color-blue {
+  background: #dbeafe;
+  color: #2f5e8c;
+}
+
+.slot-card.color-green {
+  background: #dff0e5;
+  color: #3f7056;
+}
+
+.slot-card.color-orange {
+  background: #fde7d4;
+  color: #9a5f2f;
+}
+
+.slot-card.color-red {
+  background: #f9dddd;
+  color: #9b4444;
+}
+
+.slot-card.color-purple {
+  background: #e8e1f4;
+  color: #6d5a94;
+}
+
+.slot-card.color-teal {
+  background: #d8efef;
+  color: #3f7777;
+}
+
+.slot-card.color-yellow {
+  background: #fff0c9;
+  color: #8a6b2f;
+}
+
+.slot-card.color-pink {
+  background: #f8dfec;
+  color: #99516f;
+}
+
+.slot-card.color-gray {
+  background: #e8e8e4;
+  color: #62625f;
+}
+
+body.dark .slot-card.todo {
+  background: #3a4932;
+  color: #bfd5a4;
+}
+
+body.dark .slot-card.color-blue {
+  background: #2e414e;
+  color: #9ec5df;
+}
+
+body.dark .slot-card.color-green {
+  background: #31473a;
+  color: #aed3b4;
+}
+
+body.dark .slot-card.color-orange {
+  background: #4a3c2c;
+  color: #e6bd82;
+}
+
+body.dark .slot-card.color-red {
+  background: #4b302e;
+  color: #e6a09a;
+}
+
+body.dark .slot-card.color-purple {
+  background: #3e374e;
+  color: #c3b3e2;
+}
+
+body.dark .slot-card.color-teal {
+  background: #304645;
+  color: #a8d5d1;
+}
+
+body.dark .slot-card.color-yellow {
+  background: #4c422c;
+  color: #e7cf85;
+}
+
+body.dark .slot-card.color-pink {
+  background: #4a3540;
+  color: #e3a8c1;
+}
+
+body.dark .slot-card.color-gray {
+  background: #3b3935;
+  color: #d1cec4;
+}
+
 .slot-card.blank-cell {
   align-items: center;
   justify-content: center;
@@ -611,6 +733,27 @@ body.dark .brand-mark {
 
 .period-gap {
   background: transparent;
+}
+
+.weekday-todo-layer,
+.weekend-day-panel {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.todo-subgrid,
+.weekend-subgrid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.weekend-day-panel {
+  border-right: 1px solid var(--border);
 }
 
 .section-ribbon {
@@ -742,7 +885,8 @@ body.dark .brand-mark {
 }
 
 .field input,
-.field textarea {
+.field textarea,
+.field select {
   width: 100%;
   min-height: 42px;
   padding: 10px 11px;
@@ -759,10 +903,57 @@ body.dark .brand-mark {
 }
 
 .field input:focus,
-.field textarea:focus {
+.field textarea:focus,
+.field select:focus {
   border-color: var(--focus);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent);
 }
+
+.color-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.color-swatch {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.color-swatch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.color-swatch span {
+  width: 100%;
+  height: 100%;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.color-swatch input:checked + span {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.color-swatch.blue span { --swatch: #dbeafe; }
+.color-swatch.green span { --swatch: #dff0e5; }
+.color-swatch.orange span { --swatch: #fde7d4; }
+.color-swatch.red span { --swatch: #f9dddd; }
+.color-swatch.purple span { --swatch: #e8e1f4; }
+.color-swatch.teal span { --swatch: #d8efef; }
+.color-swatch.yellow span { --swatch: #fff0c9; }
+.color-swatch.pink span { --swatch: #f8dfec; }
+.color-swatch.gray span { --swatch: #e8e8e4; }
 
 .field-row {
   display: grid;
@@ -880,6 +1071,13 @@ body.dark .brand-mark {
   flex: 1 1 auto;
   min-width: 0;
   accent-color: var(--warm);
+}
+
+.zoom-value {
+  align-self: flex-end;
+  color: var(--muted);
+  font-size: 0.78em;
+  font-weight: 700;
 }
 
 .settings-note {
