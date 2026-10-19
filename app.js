@@ -136,7 +136,7 @@ function loadState() {
       settings: {
         theme: raw.settings?.theme === "dark" ? "dark" : "light",
         fontScale: clampSetting(raw.settings?.fontScale, 0.85, 1.25, 1),
-        viewScale: clampSetting(raw.settings?.viewScale, 0.5, 1.5, 1)
+        viewScale: clampSetting(raw.settings?.viewScale, 0.2, 1.5, 1)
       },
       days
     };
@@ -250,20 +250,21 @@ function itemSpan(item, defaultStart = "06:00", defaultDuration = 90) {
 }
 
 function assignLanes(items) {
-  const laneEnds = [];
+  const lanes = [];
   return items.map((item, index) => {
     const span = itemSpan(item);
     const startMinutes = timeToMinutes(span.start);
     const endMinutes = timeToMinutes(span.end);
-    let lane = laneEnds.findIndex((laneEnd) => laneEnd <= startMinutes);
+    let lane = lanes.findIndex((intervals) =>
+      intervals.every((interval) => interval.end <= startMinutes || interval.start >= endMinutes)
+    );
     if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(endMinutes);
-    } else {
-      laneEnds[lane] = Math.max(laneEnds[lane], endMinutes);
+      lane = lanes.length;
+      lanes.push([]);
     }
+    lanes[lane].push({ start: startMinutes, end: endMinutes });
     return { ...item, index, ...span, lane, startMinutes, endMinutes };
-  }).sort((a, b) => a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes);
+  });
 }
 
 function applySettings() {
@@ -756,6 +757,28 @@ function deleteEditorItem() {
 }
 
 function bindEvents() {
+  document.querySelector("#shareBtn").addEventListener("click", async () => {
+    const shareData = {
+      title: "七日课表",
+      text: "一个可以离线使用的七日课表，支持 iPhone 和 Android。",
+      url: window.location.href
+    };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch {
+        // User may cancel sharing.
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(shareData.url);
+      showToast("链接已复制");
+    } catch {
+      showToast("请复制浏览器地址栏链接分享");
+    }
+  });
+
   document.querySelector("#settingsBtn").addEventListener("click", () => {
     document.querySelector("#settingsOverlay").hidden = false;
     renderSettingsPanel();

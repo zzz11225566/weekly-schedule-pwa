@@ -170,6 +170,13 @@ body.dark .brand-mark {
   text-overflow: ellipsis;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
 .icon-btn {
   display: inline-grid;
   place-items: center;
