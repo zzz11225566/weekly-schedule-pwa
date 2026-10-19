@@ -275,6 +275,13 @@ function applySettings() {
   if (themeMeta) {
     themeMeta.setAttribute("content", state.settings.theme === "dark" ? "#242321" : "#f7f7f5");
   }
+  const viewport = document.querySelector('meta[name="viewport"]');
+  if (viewport) {
+    viewport.setAttribute(
+      "content",
+      `width=device-width, initial-scale=${state.settings.viewScale}, minimum-scale=0.2, maximum-scale=3, user-scalable=yes, viewport-fit=cover`
+    );
+  }
 }
 
 function showToast(message) {
@@ -756,6 +763,17 @@ function deleteEditorItem() {
   showToast("已删除");
 }
 
+function openActionTarget(actionTarget) {
+  const { action, day, period, index } = actionTarget.dataset;
+  if (action === "open-period") {
+    openEditor({ kind: "period", day, period: Number(period) });
+  } else if (action === "open-todo") {
+    openEditor({ kind: "todo", day, index: Number(index) });
+  } else if (action === "open-weekend") {
+    openEditor({ kind: "weekend", day, index: Number(index) });
+  }
+}
+
 function bindEvents() {
   document.querySelector("#shareBtn").addEventListener("click", async () => {
     const shareData = {
@@ -823,15 +841,29 @@ function bindEvents() {
     if (event.target.closest(".task-toggle") || event.target.closest(".head-add")) return;
     const actionTarget = event.target.closest("[data-action]");
     if (!actionTarget) return;
-    const { action, day, period, index } = actionTarget.dataset;
-    if (action === "open-period") {
-      openEditor({ kind: "period", day, period: Number(period) });
-    } else if (action === "open-todo") {
-      openEditor({ kind: "todo", day, index: Number(index) });
-    } else if (action === "open-weekend") {
-      openEditor({ kind: "weekend", day, index: Number(index) });
-    }
+    openActionTarget(actionTarget);
   });
+
+  let lastTap = { time: 0, key: "" };
+  document.querySelector("#weekGrid").addEventListener(
+    "touchend",
+    (event) => {
+      if (event.target.closest(".task-toggle") || event.target.closest(".head-add")) return;
+      const actionTarget = event.target.closest("[data-action]");
+      if (!actionTarget || !["open-period", "open-todo", "open-weekend"].includes(actionTarget.dataset.action)) return;
+      const { action, day, period, index } = actionTarget.dataset;
+      const key = `${action}:${day}:${period || index || ""}`;
+      const now = Date.now();
+      if (lastTap.key === key && now - lastTap.time < 380) {
+        event.preventDefault();
+        openActionTarget(actionTarget);
+        lastTap = { time: 0, key: "" };
+      } else {
+        lastTap = { time: now, key };
+      }
+    },
+    { passive: false }
+  );
 
   document.querySelector("#weekGrid").addEventListener("keydown", (event) => {
     const card = event.target.closest('.slot-card[role="button"]');

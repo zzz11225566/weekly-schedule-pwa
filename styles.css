@@ -356,7 +356,6 @@ body.dark .brand-mark {
   grid-template-columns: 84px repeat(7, minmax(132px, 1fr));
   min-width: 1104px;
   background: var(--surface);
-  zoom: var(--ui-zoom, 1);
 }
 
 .grid-head,
