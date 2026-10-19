@@ -11,8 +11,6 @@
   --course-line: #4d7da0;
   --free-bg: #f3e8e0;
   --free-line: #9a715d;
-  --extra-bg: #e9f1e8;
-  --extra-line: #5f8060;
   --event-bg: #f8e7d4;
   --event-line: #9a6f45;
   --task-bg: #f4e3c9;
@@ -42,8 +40,6 @@ body.dark {
   --course-line: #9ec5df;
   --free-bg: #4b3b34;
   --free-line: #d7b09d;
-  --extra-bg: #344234;
-  --extra-line: #b5d1b1;
   --event-bg: #4a3c2c;
   --event-line: #e6bd82;
   --task-bg: #4b3c28;
@@ -289,53 +285,6 @@ body.dark .brand-mark {
   color: var(--active-text);
 }
 
-.mini-stepper {
-  display: grid;
-  grid-template-columns: 22px 20px 16px 20px;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  color: var(--muted);
-  font-size: 0.68em;
-  font-weight: 700;
-  text-align: center;
-}
-
-.mini-stepper span:first-child {
-  color: var(--text);
-  font-size: 0.9em;
-}
-
-.mini-stepper .count {
-  min-width: 14px;
-  color: var(--muted);
-}
-
-.mini-stepper button {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: 0;
-  border-radius: 5px;
-  background: var(--surface-2);
-  color: var(--text);
-  font-size: 1em;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.mini-stepper button:hover {
-  background: var(--active);
-  color: var(--active-text);
-}
-
-.mini-stepper button:disabled {
-  opacity: 0.38;
-  cursor: default;
-}
-
 .schedule-wrap {
   flex: 1 1 auto;
   min-height: 0;
@@ -459,25 +408,12 @@ body.dark .brand-mark {
   background: transparent;
 }
 
-.grid-cell.weekend {
-  background: transparent;
-}
-
 .grid-cell.today {
   background: transparent;
 }
 
 .grid-cell.period-end {
   border-bottom: 1px solid var(--border);
-}
-
-.grid-cell.extra-row-cell {
-  border-bottom: 1px solid var(--border);
-}
-
-.grid-cell.extra-blank {
-  border-bottom: 0;
-  background: transparent;
 }
 
 .slot-card {
@@ -515,11 +451,6 @@ body.dark .brand-mark {
 .slot-card.free {
   background: var(--free-bg);
   color: var(--free-line);
-}
-
-.slot-card.extra {
-  background: var(--extra-bg);
-  color: var(--extra-line);
 }
 
 .slot-card.event {
@@ -741,14 +672,14 @@ body.dark .slot-card.color-gray {
   background: transparent;
 }
 
-.weekday-todo-layer,
+.weekday-day-panel,
 .weekend-day-panel {
   position: relative;
   min-width: 0;
   min-height: 0;
 }
 
-.todo-subgrid,
+.weekday-subgrid,
 .weekend-subgrid {
   position: absolute;
   inset: 0;
@@ -758,21 +689,13 @@ body.dark .slot-card.color-gray {
   min-height: 0;
 }
 
+.weekday-day-panel,
 .weekend-day-panel {
   border-right: 1px solid var(--border);
 }
 
-.section-ribbon {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--extra-line) 10%, transparent);
-  color: var(--extra-line);
-  font-size: 0.68em;
-  font-weight: 700;
-  white-space: nowrap;
+.grid-cell.period-start {
+  border-top: 1px solid var(--border);
 }
 
 .overlay {
