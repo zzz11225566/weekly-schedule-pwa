@@ -269,7 +269,6 @@ function assignLanes(items) {
 
 function applySettings() {
   document.documentElement.style.setProperty("--font-scale", String(state.settings.fontScale));
-  document.documentElement.style.setProperty("--ui-zoom", String(state.settings.viewScale));
   document.body.classList.toggle("dark", state.settings.theme === "dark");
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) {
@@ -306,7 +305,7 @@ function renderBlankCell(action, attrs = "") {
   return `<div class="slot-card blank-cell" role="button" tabindex="0" data-action="${action}" ${attrs}></div>`;
 }
 
-function renderPeriodCard(dayKey, periodIndex) {
+function renderPeriodCard(dayKey, periodIndex, lane = 0) {
   const day = state.days[dayKey];
   const period = day.periods[periodIndex];
   const data = period.data || {};
@@ -335,7 +334,7 @@ function renderPeriodCard(dayKey, periodIndex) {
        ${line("", data.location, "tone-blue", { iconName: "pin" })}
        ${line("", formatDate(data.date), "tone-gray", { iconName: "calendar" })}`;
 
-  return `<div class="slot-card ${isCourse ? "course" : "free"} ${colorClass(data.color, isCourse ? "course" : "free")}${data.task ? " has-tasks" : ""}" role="button" tabindex="0" data-action="open-period" data-day="${dayKey}" data-period="${periodIndex}" data-tasks-open="${taskOpen}">
+  return `<div class="slot-card ${isCourse ? "course" : "free"} ${colorClass(data.color, isCourse ? "course" : "free")}${data.task ? " has-tasks" : ""}" role="button" tabindex="0" data-action="open-period" data-day="${dayKey}" data-period="${periodIndex}" data-tasks-open="${taskOpen}" style="grid-column:${lane + 1};grid-row:${time.offset + 1} / ${time.offset + 4};">
     <span class="card-tag">${isCourse ? "有课" : "无课"}</span>
     ${line("", `${time.start}-${time.end}`, "tone-gray", { iconName: "clock" })}
     ${courseLines}
@@ -384,47 +383,67 @@ function renderGrid() {
 
   const weekdayDays = DAYS.filter((day) => day.type === "weekday");
   const weekendDays = DAYS.filter((day) => day.type === "weekend");
+  const weekdayLayouts = {};
+  weekdayDays.forEach((day) => {
+    const blocks = [];
+    state.days[day.key].periods.forEach((period, periodIndex) => {
+      if (period.mode === "none") return;
+      const meta = PERIODS[periodIndex];
+      blocks.push({ kind: "period", index: periodIndex, start: meta.start, end: meta.end });
+    });
+    state.days[day.key].todos.forEach((todo, index) => {
+      blocks.push({ kind: "todo", index, start: todo.start, end: todo.end });
+    });
+    weekdayLayouts[day.key] = assignLanes(blocks);
+  });
+
   const weekendLayouts = {};
   weekendDays.forEach((day) => {
     const items = state.days[day.key].events.map((event, index) => ({ ...event, index }));
     weekendLayouts[day.key] = assignLanes(items);
   });
-  const todoLayouts = {};
+
+  const laneCount = (layout) =>
+    Math.max(1, layout.length ? Math.max(...layout.map((item) => item.lane + 1)) : 1);
+  const weekdayLanes = {};
   weekdayDays.forEach((day) => {
-    const items = state.days[day.key].todos.map((todo, index) => ({ ...todo, index }));
-    todoLayouts[day.key] = assignLanes(items);
+    weekdayLanes[day.key] = laneCount(weekdayLayouts[day.key]);
   });
+  const satLanes = laneCount(weekendLayouts.sat);
+  const sunLanes = laneCount(weekendLayouts.sun);
 
-  const satLanes = Math.max(1, weekendLayouts.sat.length ? Math.max(...weekendLayouts.sat.map((item) => item.lane + 1)) : 1);
-  const sunLanes = Math.max(1, weekendLayouts.sun.length ? Math.max(...weekendLayouts.sun.map((item) => item.lane + 1)) : 1);
   const columns = ["84px"];
-  weekdayDays.forEach(() => columns.push("minmax(132px, 1fr)"));
-  if (satLanes > 1) {
-    columns.push(`repeat(${satLanes}, minmax(132px, 1fr))`);
-  } else {
-    columns.push("minmax(132px, 1fr)");
-  }
-  if (sunLanes > 1) {
-    columns.push(`repeat(${sunLanes}, minmax(132px, 1fr))`);
-  } else {
-    columns.push("minmax(132px, 1fr)");
-  }
+  weekdayDays.forEach((day) => {
+    const lanes = weekdayLanes[day.key];
+    columns.push(lanes > 1 ? `repeat(${lanes}, minmax(132px, 1fr))` : "minmax(132px, 1fr)");
+  });
+  columns.push(satLanes > 1 ? `repeat(${satLanes}, minmax(132px, 1fr))` : "minmax(132px, 1fr)");
+  columns.push(sunLanes > 1 ? `repeat(${sunLanes}, minmax(132px, 1fr))` : "minmax(132px, 1fr)");
 
-  const satStart = 7;
+  let nextColumn = 2;
+  const weekdayColumns = {};
+  weekdayDays.forEach((day) => {
+    weekdayColumns[day.key] = nextColumn;
+    nextColumn += weekdayLanes[day.key];
+  });
+  const satStart = nextColumn;
   const sunStart = satStart + satLanes;
+  const totalDayLanes = weekdayDays.reduce((sum, day) => sum + weekdayLanes[day.key], 0) + satLanes + sunLanes;
+
   const grid = document.querySelector("#weekGrid");
   grid.style.gridTemplateColumns = columns.join(" ");
-  grid.style.minWidth = window.innerWidth >= 720 ? "0px" : `${84 + (5 + satLanes + sunLanes) * 132}px`;
+  grid.style.minWidth = window.innerWidth >= 720 ? "0px" : `${84 + totalDayLanes * 132}px`;
   grid.style.gridTemplateRows = ["64px", `repeat(${coreRows}, minmax(32px, auto))`].join(" ");
 
   const parts = [];
   parts.push(`<div class="grid-head corner">${renderTimeControls()}</div>`);
 
   weekdayDays.forEach((day) => {
-    const col = 2 + weekdayDays.indexOf(day);
+    const col = weekdayColumns[day.key];
+    const lanes = weekdayLanes[day.key];
     const isToday = day.key === getCurrentDayKey();
     parts.push(`
-      <div class="grid-head ${isToday ? "active" : ""}" data-day="${day.key}" style="grid-column:${col};grid-row:1;">
+      <div class="grid-head ${isToday ? "active" : ""}" data-day="${day.key}" style="grid-column:${col} / span ${lanes};grid-row:1;">
         <span class="head-day">${day.label}</span>
         <span class="head-date">${weekDates[DAYS.indexOf(day)]}</span>
       </div>
@@ -451,36 +470,39 @@ function renderGrid() {
       parts.push(`<div class="time-label" style="grid-column:1;grid-row:${rowLine} / ${rowLine + 2};">${minutesToTime(minutes)}</div>`);
     }
     weekdayDays.forEach((day) => {
-      const col = 2 + weekdayDays.indexOf(day);
+      const col = weekdayColumns[day.key];
+      const lanes = weekdayLanes[day.key];
       const isToday = day.key === getCurrentDayKey();
       const classNames = ["grid-cell"];
       if (isToday) classNames.push("today");
       const isGap = !PERIODS.some((period) => row >= period.offset && row < period.offset + 3);
       if (isGap) classNames.push("period-gap");
+      if (PERIODS.some((period) => row === period.offset)) classNames.push("period-start");
       if (PERIODS.some((period) => row === period.offset + 2)) classNames.push("period-end");
-      parts.push(`<div class="${classNames.join(" ")}" style="grid-column:${col};grid-row:${rowLine} / ${rowLine + 1};"></div>`);
+      parts.push(`<div class="${classNames.join(" ")}" style="grid-column:${col} / span ${lanes};grid-row:${rowLine} / ${rowLine + 1};"></div>`);
     });
   }
 
   weekdayDays.forEach((day) => {
-    const col = 2 + weekdayDays.indexOf(day);
-    state.days[day.key].periods.forEach((period, periodIndex) => {
-      const meta = PERIODS[periodIndex];
-      const startLine = coreStartRow + meta.offset;
-      const endLine = startLine + 3;
-      parts.push(`<div style="grid-column:${col};grid-row:${startLine} / ${endLine};z-index:1;">${renderPeriodCard(day.key, periodIndex)}</div>`);
-    });
-
-    const layout = todoLayouts[day.key];
-    if (layout.length) {
-      const lanes = Math.max(1, ...layout.map((item) => item.lane + 1));
-      const todoCards = layout.map((item) => renderTodoCard(day.key, item.index, item.lane)).join("");
-      parts.push(`
-        <div class="weekday-todo-layer" style="grid-column:${col};grid-row:${coreStartRow} / ${afterStartRow};z-index:3;">
-          <div class="todo-subgrid" style="grid-template-columns:repeat(${lanes}, minmax(0, 1fr));grid-template-rows:repeat(${coreRows}, minmax(32px, auto));">${todoCards}</div>
-        </div>
-      `);
-    }
+    const col = weekdayColumns[day.key];
+    const lanes = weekdayLanes[day.key];
+    const layout = weekdayLayouts[day.key];
+    const cards = layout
+      .map((item) =>
+        item.kind === "period"
+          ? renderPeriodCard(day.key, item.index, item.lane)
+          : renderTodoCard(day.key, item.index, item.lane)
+      )
+      .join("");
+    const blankCards = PERIODS.map((meta, periodIndex) => {
+      if (state.days[day.key].periods[periodIndex].mode !== "none") return "";
+      return `<div style="grid-column:1;grid-row:${meta.offset + 1} / ${meta.offset + 4};">${renderBlankCell("open-period", `data-day="${day.key}" data-period="${periodIndex}"`)}</div>`;
+    }).join("");
+    parts.push(`
+      <div class="weekday-day-panel" style="grid-column:${col} / span ${lanes};grid-row:${coreStartRow} / ${afterStartRow};z-index:2;">
+        <div class="weekday-subgrid" style="grid-template-columns:repeat(${lanes}, minmax(0, 1fr));grid-template-rows:repeat(${coreRows}, minmax(32px, auto));">${cards}${blankCards}</div>
+      </div>
+    `);
   });
 
   weekendDays.forEach((day) => {
@@ -917,11 +939,11 @@ function bindEvents() {
 
   document.querySelector("#zoomRange").addEventListener("input", (event) => {
     state.settings.viewScale = Number(event.target.value);
-    applySettings();
-    renderSettingsPanel();
+    document.querySelector("#zoomValue").textContent = `${Math.round(state.settings.viewScale * 100)}%`;
   });
 
   document.querySelector("#zoomRange").addEventListener("change", () => {
+    applySettings();
     saveState();
     showToast("缩放已调整");
   });
