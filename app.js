@@ -1,28 +1,40 @@
 const STORAGE_KEY = "weekly-schedule-v1";
 
 const DAYS = [
-  { key: "mon", label: "周一", short: "一", column: 2, type: "weekday" },
-  { key: "tue", label: "周二", short: "二", column: 3, type: "weekday" },
-  { key: "wed", label: "周三", short: "三", column: 4, type: "weekday" },
-  { key: "thu", label: "周四", short: "四", column: 5, type: "weekday" },
-  { key: "fri", label: "周五", short: "五", column: 6, type: "weekday" },
-  { key: "sat", label: "周六", short: "六", column: 7, type: "weekend" },
-  { key: "sun", label: "周日", short: "日", column: 8, type: "weekend" }
+  { key: "mon", label: "周一", short: "一", type: "weekday" },
+  { key: "tue", label: "周二", short: "二", type: "weekday" },
+  { key: "wed", label: "周三", short: "三", type: "weekday" },
+  { key: "thu", label: "周四", short: "四", type: "weekday" },
+  { key: "fri", label: "周五", short: "五", type: "weekday" },
+  { key: "sat", label: "周六", short: "六", type: "weekend" },
+  { key: "sun", label: "周日", short: "日", type: "weekend" }
 ];
 
 const PERIODS = [
-  { start: "08:00", end: "09:30", offset: 0 },
-  { start: "10:00", end: "11:30", offset: 4 },
-  { start: "12:00", end: "13:30", offset: 8 },
-  { start: "14:00", end: "15:30", offset: 12 },
-  { start: "16:00", end: "17:30", offset: 16 },
-  { start: "18:00", end: "19:30", offset: 20 },
-  { start: "20:00", end: "21:30", offset: 24 }
+  { start: "08:00", end: "09:30", offset: 4 },
+  { start: "10:00", end: "11:30", offset: 8 },
+  { start: "12:00", end: "13:30", offset: 12 },
+  { start: "14:00", end: "15:30", offset: 16 },
+  { start: "16:00", end: "17:30", offset: 20 },
+  { start: "18:00", end: "19:30", offset: 24 },
+  { start: "20:00", end: "21:30", offset: 28 }
 ];
 
-const CORE_START_MIN = 8 * 60;
-const CORE_END_MIN = 21 * 60 + 30;
-const CORE_HALF_ROWS = 27;
+const CORE_START_MIN = 6 * 60;
+const CORE_END_MIN = 23 * 60;
+const CORE_HALF_ROWS = 34;
+
+const COLORS = [
+  { id: "blue", name: "蓝" },
+  { id: "green", name: "绿" },
+  { id: "orange", name: "橙" },
+  { id: "red", name: "红" },
+  { id: "purple", name: "紫" },
+  { id: "teal", name: "青" },
+  { id: "yellow", name: "黄" },
+  { id: "pink", name: "粉" },
+  { id: "gray", name: "灰" }
+];
 
 function emptyPeriod() {
   return { mode: "none", data: {} };
@@ -32,17 +44,14 @@ function createWeekday() {
   return {
     type: "weekday",
     periods: PERIODS.map(emptyPeriod),
-    before: [],
-    after: []
+    todos: []
   };
 }
 
 function createWeekend() {
   return {
     type: "weekend",
-    events: [],
-    before: [],
-    after: []
+    events: []
   };
 }
 
@@ -55,14 +64,36 @@ function createDefaultState() {
     version: 1,
     settings: {
       theme: "light",
-      fontScale: 1
+      fontScale: 1,
+      viewScale: 1
     },
-    days,
-    extraRows: {
-      before: 1,
-      after: 1
-    }
+    days
   };
+}
+
+function legacyExtrasToTodos(rawDay) {
+  const todos = [];
+  (Array.isArray(rawDay?.before) ? rawDay.before : []).forEach((item) => {
+    todos.push({
+      title: item.title || "",
+      location: item.location || "",
+      date: item.date || "",
+      start: item.start || "06:00",
+      end: item.end || "08:00",
+      color: item.color || "green"
+    });
+  });
+  (Array.isArray(rawDay?.after) ? rawDay.after : []).forEach((item) => {
+    todos.push({
+      title: item.title || "",
+      location: item.location || "",
+      date: item.date || "",
+      start: item.start || "21:30",
+      end: item.end || "23:00",
+      color: item.color || "orange"
+    });
+  });
+  return todos;
 }
 
 function normalizeDay(rawDay, type) {
@@ -76,25 +107,19 @@ function normalizeDay(rawDay, type) {
           if (!saved || typeof saved !== "object") return emptyPeriod();
           return {
             mode: saved.mode === "course" || saved.mode === "free" ? saved.mode : "none",
-            data:
-              saved.data && typeof saved.data === "object"
-                ? saved.data
-                : {}
+            data: saved.data && typeof saved.data === "object" ? saved.data : {}
           };
         })
       : PERIODS.map(emptyPeriod);
     return {
       type: "weekday",
       periods,
-      before: Array.isArray(rawDay.before) ? rawDay.before : [],
-      after: Array.isArray(rawDay.after) ? rawDay.after : []
+      todos: Array.isArray(rawDay.todos) ? rawDay.todos : legacyExtrasToTodos(rawDay)
     };
   }
   return {
     type: "weekend",
-    events: Array.isArray(rawDay.events) ? rawDay.events : [],
-    before: Array.isArray(rawDay.before) ? rawDay.before : [],
-    after: Array.isArray(rawDay.after) ? rawDay.after : []
+    events: Array.isArray(rawDay.events) ? rawDay.events : []
   };
 }
 
@@ -106,32 +131,23 @@ function loadState() {
     DAYS.forEach((day) => {
       days[day.key] = normalizeDay(raw.days?.[day.key], day.type);
     });
-    const weekdayKeys = DAYS.filter((day) => day.type === "weekday").map((day) => day.key);
-    const existingBefore = Math.max(1, ...weekdayKeys.map((key) => days[key].before.length));
-    const existingAfter = Math.max(1, ...weekdayKeys.map((key) => days[key].after.length));
     return {
       version: 1,
       settings: {
         theme: raw.settings?.theme === "dark" ? "dark" : "light",
-        fontScale:
-          typeof raw.settings?.fontScale === "number"
-            ? Math.min(1.25, Math.max(0.85, raw.settings.fontScale))
-            : 1
+        fontScale: clampSetting(raw.settings?.fontScale, 0.85, 1.25, 1),
+        viewScale: clampSetting(raw.settings?.viewScale, 0.5, 1.5, 1)
       },
-      days,
-      extraRows: {
-        before: clampRowCount(raw.extraRows?.before ?? existingBefore),
-        after: clampRowCount(raw.extraRows?.after ?? existingAfter)
-      }
+      days
     };
   } catch {
     return createDefaultState();
   }
 }
 
-function clampRowCount(value) {
-  if (!Number.isFinite(Number(value))) return 1;
-  return Math.min(8, Math.max(0, Number(value)));
+function clampSetting(value, min, max, fallback) {
+  if (!Number.isFinite(Number(value))) return fallback;
+  return Math.min(max, Math.max(min, Number(value)));
 }
 
 let state = loadState();
@@ -202,7 +218,7 @@ function minutesToTime(minutes) {
 
 function addMinutes(time, amount) {
   const minutes = timeToMinutes(time);
-  if (minutes === null) return "09:30";
+  if (minutes === null) return "07:30";
   return minutesToTime(minutes + amount);
 }
 
@@ -213,48 +229,46 @@ function timeToOffset(time) {
   return Math.round((clamped - CORE_START_MIN) / 30);
 }
 
-function normalizeEventTimes(event) {
-  let start = event.start || "08:00";
-  let end = event.end || addMinutes(start, 90);
+function normalizeInterval(item, defaultStart = "06:00", defaultDuration = 90) {
+  let start = item?.start || defaultStart;
+  let end = item?.end || addMinutes(start, defaultDuration);
   const startMinutes = timeToMinutes(start);
   const endMinutes = timeToMinutes(end);
-  if (startMinutes === null) start = "08:00";
+  if (startMinutes === null) start = defaultStart;
   if (endMinutes === null || endMinutes <= startMinutes) {
-    end = addMinutes(start, 90);
+    end = addMinutes(start, defaultDuration);
   }
   return { start, end };
 }
 
-function eventSpan(event) {
-  const { start, end } = normalizeEventTimes(event);
+function itemSpan(item, defaultStart = "06:00", defaultDuration = 90) {
+  const { start, end } = normalizeInterval(item, defaultStart, defaultDuration);
   let startOffset = Math.min(CORE_HALF_ROWS - 1, timeToOffset(start));
   let endOffset = Math.min(CORE_HALF_ROWS, timeToOffset(end));
   if (endOffset <= startOffset) endOffset = Math.min(CORE_HALF_ROWS, startOffset + 3);
   return { start, end, startOffset, endOffset };
 }
 
-function extraDurationMinutes(item) {
-  if (!item) return 0;
-  const start = timeToMinutes(item.start);
-  const end = timeToMinutes(item.end);
-  if (start === null && end === null) return 0;
-  if (start === null) return 30;
-  if (end === null) return 30;
-  return Math.max(0, end - start);
-}
-
-function getExtraRowHeight(slot, row) {
-  let maxMinutes = 0;
-  DAYS.filter((day) => day.type === "weekday").forEach((day) => {
-    const item = state.days[day.key][slot]?.[row];
-    maxMinutes = Math.max(maxMinutes, extraDurationMinutes(item));
-  });
-  const alignedMinutes = Math.max(0, Math.ceil(maxMinutes / 30) * 30);
-  return Math.max(46, Math.round(alignedMinutes * (32 / 30)));
+function assignLanes(items) {
+  const laneEnds = [];
+  return items.map((item, index) => {
+    const span = itemSpan(item);
+    const startMinutes = timeToMinutes(span.start);
+    const endMinutes = timeToMinutes(span.end);
+    let lane = laneEnds.findIndex((laneEnd) => laneEnd <= startMinutes);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(endMinutes);
+    } else {
+      laneEnds[lane] = Math.max(laneEnds[lane], endMinutes);
+    }
+    return { ...item, index, ...span, lane, startMinutes, endMinutes };
+  }).sort((a, b) => a.startMinutes - b.startMinutes || a.endMinutes - b.endMinutes);
 }
 
 function applySettings() {
   document.documentElement.style.setProperty("--font-scale", String(state.settings.fontScale));
+  document.documentElement.style.setProperty("--ui-zoom", String(state.settings.viewScale));
   document.body.classList.toggle("dark", state.settings.theme === "dark");
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) {
@@ -276,9 +290,8 @@ function line(label, value, toneClass, { strong = false, iconName = "" } = {}) {
   return `<div class="card-line ${toneClass}">${iconMarkup}<span>${strong ? "<strong>" : ""}${escapeHtml(label)}${escapeHtml(value)}${strong ? "</strong>" : ""}</span></div>`;
 }
 
-function hasExtraContent(item) {
-  if (!item) return false;
-  return Boolean(item.title || item.location || item.date || item.start || item.end);
+function colorClass(color, fallback) {
+  return COLORS.some((item) => item.id === color) ? `color-${color}` : fallback;
 }
 
 function renderBlankCell(action, attrs = "") {
@@ -314,19 +327,20 @@ function renderPeriodCard(dayKey, periodIndex) {
        ${line("", data.location, "tone-blue", { iconName: "pin" })}
        ${line("", formatDate(data.date), "tone-gray", { iconName: "calendar" })}`;
 
-  return `<div class="slot-card ${isCourse ? "course" : "free"}${data.task ? " has-tasks" : ""}" role="button" tabindex="0" data-action="open-period" data-day="${dayKey}" data-period="${periodIndex}" data-tasks-open="${taskOpen}">
+  return `<div class="slot-card ${isCourse ? "course" : "free"} ${colorClass(data.color, isCourse ? "course" : "free")}${data.task ? " has-tasks" : ""}" role="button" tabindex="0" data-action="open-period" data-day="${dayKey}" data-period="${periodIndex}" data-tasks-open="${taskOpen}">
     <span class="card-tag">${isCourse ? "有课" : "无课"}</span>
     ${line("", `${time.start}-${time.end}`, "tone-gray", { iconName: "clock" })}
     ${courseLines}
   </div>`;
 }
 
-function renderExtraCard(dayKey, slot, index) {
-  const item = state.days[dayKey][slot][index];
-  const slotLabel = slot === "before" ? "课前待办" : "课后待办";
-  const timeText = item.start || item.end ? `${item.start || "未填"}-${item.end || "未填"}` : "";
-  return `<div class="slot-card extra" role="button" tabindex="0" data-action="open-extra" data-day="${dayKey}" data-slot="${slot}" data-index="${index}">
-    <span class="card-tag">${slotLabel}</span>
+function renderTodoCard(dayKey, index, lane = 0) {
+  const item = state.days[dayKey].todos[index];
+  if (!item) return "";
+  const span = itemSpan(item);
+  const timeText = item.start || item.end ? `${item.start || "未填"}-${item.end || "未填"}` : "时间未填";
+  return `<div class="slot-card todo ${colorClass(item.color, "todo")}" role="button" tabindex="0" data-action="open-todo" data-day="${dayKey}" data-index="${index}" style="grid-column:${lane + 1};grid-row:${span.startOffset + 1} / ${span.endOffset + 1};">
+    <span class="card-tag">待办</span>
     ${line("", timeText, "tone-orange", { iconName: "clock" })}
     ${line("", item.title || "未填写待办", "tone-green", { strong: true })}
     ${line("", item.location, "tone-blue", { iconName: "pin" })}
@@ -334,17 +348,12 @@ function renderExtraCard(dayKey, slot, index) {
   </div>`;
 }
 
-function renderExtraCell(dayKey, slot, index) {
-  const item = state.days[dayKey][slot]?.[index];
-  return hasExtraContent(item)
-    ? renderExtraCard(dayKey, slot, index)
-    : renderBlankCell("open-extra", `data-day="${dayKey}" data-slot="${slot}" data-index="${index}"`);
-}
-
-function renderEventCard(dayKey, index) {
+function renderEventCard(dayKey, index, lane = 0) {
   const event = state.days[dayKey].events[index];
+  if (!event) return "";
+  const span = itemSpan(event, "06:00", 90);
   const timeText = event.start || event.end ? `${event.start || "未填"}-${event.end || "未填"}` : "时间未填";
-  return `<div class="slot-card event" role="button" tabindex="0" data-action="open-weekend" data-day="${dayKey}" data-index="${index}">
+  return `<div class="slot-card event ${colorClass(event.color, "event")}" role="button" tabindex="0" data-action="open-weekend" data-day="${dayKey}" data-index="${index}" style="grid-column:${lane + 1};grid-row:${span.startOffset + 1} / ${span.endOffset + 1};">
     <span class="card-tag">活动</span>
     ${line("", timeText, "tone-orange", { iconName: "clock" })}
     ${line("", event.content || "未填写内容", "tone-brown", { strong: true })}
@@ -354,70 +363,78 @@ function renderEventCard(dayKey, index) {
 }
 
 function renderTimeControls() {
-  const before = clampRowCount(state.extraRows.before);
-  const after = clampRowCount(state.extraRows.after);
-  const control = (slot, label, count) => `
-    <div class="mini-stepper">
-      <span>${label}</span>
-      <button type="button" data-action="extra-control" data-slot="${slot}" data-delta="-1" ${count <= 0 ? "disabled" : ""} aria-label="减少${label}行">-</button>
-      <span class="count" data-extra-count="${slot}">${count}</span>
-      <button type="button" data-action="extra-control" data-slot="${slot}" data-delta="1" ${count >= 8 ? "disabled" : ""} aria-label="增加${label}行">+</button>
-    </div>
-  `;
-  return `<div class="time-controls">${control("before", "课前", before)}${control("after", "课后", after)}</div>`;
+  return `<div class="time-controls">
+    <button class="todo-add-button" type="button" data-action="open-todo-new">${icon("plus", 14)} 待办</button>
+  </div>`;
 }
 
 function renderGrid() {
   const weekDates = getWeekDates();
-  const beforeRows = clampRowCount(state.extraRows.before);
-  const afterRows = clampRowCount(state.extraRows.after);
-  const coreStartRow = 2 + beforeRows;
+  const coreStartRow = 2;
   const coreRows = CORE_HALF_ROWS;
   const afterStartRow = coreStartRow + coreRows;
+
+  const weekdayDays = DAYS.filter((day) => day.type === "weekday");
+  const weekendDays = DAYS.filter((day) => day.type === "weekend");
+  const weekendLayouts = {};
+  weekendDays.forEach((day) => {
+    const items = state.days[day.key].events.map((event, index) => ({ ...event, index }));
+    weekendLayouts[day.key] = assignLanes(items);
+  });
+  const todoLayouts = {};
+  weekdayDays.forEach((day) => {
+    const items = state.days[day.key].todos.map((todo, index) => ({ ...todo, index }));
+    todoLayouts[day.key] = assignLanes(items);
+  });
+
+  const satLanes = Math.max(1, weekendLayouts.sat.length ? Math.max(...weekendLayouts.sat.map((item) => item.lane + 1)) : 1);
+  const sunLanes = Math.max(1, weekendLayouts.sun.length ? Math.max(...weekendLayouts.sun.map((item) => item.lane + 1)) : 1);
+  const columns = ["84px"];
+  weekdayDays.forEach(() => columns.push("minmax(132px, 1fr)"));
+  if (satLanes > 1) {
+    columns.push(`repeat(${satLanes}, minmax(132px, 1fr))`);
+  } else {
+    columns.push("minmax(132px, 1fr)");
+  }
+  if (sunLanes > 1) {
+    columns.push(`repeat(${sunLanes}, minmax(132px, 1fr))`);
+  } else {
+    columns.push("minmax(132px, 1fr)");
+  }
+
+  const satStart = 7;
+  const sunStart = satStart + satLanes;
   const grid = document.querySelector("#weekGrid");
-  const rowTracks = ["64px"];
-  if (beforeRows > 0) {
-    for (let row = 0; row < beforeRows; row += 1) {
-      rowTracks.push(`minmax(${getExtraRowHeight("before", row)}px, auto)`);
-    }
-  }
-  rowTracks.push(`repeat(${coreRows}, minmax(32px, auto))`);
-  if (afterRows > 0) {
-    for (let row = 0; row < afterRows; row += 1) {
-      rowTracks.push(`minmax(${getExtraRowHeight("after", row)}px, auto)`);
-    }
-  }
-  grid.style.gridTemplateRows = rowTracks.join(" ");
+  grid.style.gridTemplateColumns = columns.join(" ");
+  grid.style.minWidth = window.innerWidth >= 720 ? "0px" : `${84 + (5 + satLanes + sunLanes) * 132}px`;
+  grid.style.gridTemplateRows = ["64px", `repeat(${coreRows}, minmax(32px, auto))`].join(" ");
 
   const parts = [];
   parts.push(`<div class="grid-head corner">${renderTimeControls()}</div>`);
-  DAYS.forEach((day, index) => {
+
+  weekdayDays.forEach((day) => {
+    const col = 2 + weekdayDays.indexOf(day);
     const isToday = day.key === getCurrentDayKey();
-    const addButton =
-      day.type === "weekend"
-        ? `<button class="head-add" type="button" data-action="open-weekend" data-day="${day.key}" data-index="-1" aria-label="新增${day.label}活动">${icon("plus", 14)}</button>`
-        : "";
     parts.push(`
-      <div class="grid-head ${isToday ? "active" : ""}" data-day="${day.key}" style="grid-column:${day.column};grid-row:1;">
+      <div class="grid-head ${isToday ? "active" : ""}" data-day="${day.key}" style="grid-column:${col};grid-row:1;">
         <span class="head-day">${day.label}</span>
-        <span class="head-date">${weekDates[index]}</span>
-        ${addButton}
+        <span class="head-date">${weekDates[DAYS.indexOf(day)]}</span>
       </div>
     `);
   });
 
-  for (let row = 0; row < beforeRows; row += 1) {
-    const rowLine = coreStartRow - beforeRows + row;
-    parts.push(`<div class="day-spacer" style="grid-column:1;grid-row:${rowLine} / ${rowLine + 1}"><span class="section-ribbon">课前</span></div>`);
-    DAYS.forEach((day) => {
-      if (day.type === "weekday") {
-        parts.push(`<div class="grid-cell extra-row-cell" style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1}"></div>`);
-        parts.push(`<div style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1};z-index:1;">${renderExtraCell(day.key, "before", row)}</div>`);
-      } else {
-        parts.push(`<div class="grid-cell extra-blank" style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1}"></div>`);
-      }
-    });
-  }
+  weekendDays.forEach((day) => {
+    const lanes = day.key === "sat" ? satLanes : sunLanes;
+    const col = day.key === "sat" ? satStart : sunStart;
+    const isToday = day.key === getCurrentDayKey();
+    parts.push(`
+      <div class="grid-head ${isToday ? "active" : ""}" data-day="${day.key}" style="grid-column:${col} / span ${lanes};grid-row:1;">
+        <span class="head-day">${day.label}</span>
+        <span class="head-date">${weekDates[DAYS.indexOf(day)]}</span>
+        <button class="head-add" type="button" data-action="open-weekend" data-day="${day.key}" data-index="-1" aria-label="新增${day.label}活动">${icon("plus", 14)}</button>
+      </div>
+    `);
+  });
 
   for (let row = 0; row < coreRows; row += 1) {
     const rowLine = coreStartRow + row;
@@ -425,49 +442,50 @@ function renderGrid() {
     if (row % 2 === 0) {
       parts.push(`<div class="time-label" style="grid-column:1;grid-row:${rowLine} / ${rowLine + 2};">${minutesToTime(minutes)}</div>`);
     }
-    DAYS.forEach((day) => {
+    weekdayDays.forEach((day) => {
+      const col = 2 + weekdayDays.indexOf(day);
       const isToday = day.key === getCurrentDayKey();
       const classNames = ["grid-cell"];
-      if (day.type === "weekend") classNames.push("weekend");
       if (isToday) classNames.push("today");
-      const isGap = day.type === "weekday" && !PERIODS.some((period) => row >= period.offset && row < period.offset + 3);
+      const isGap = !PERIODS.some((period) => row >= period.offset && row < period.offset + 3);
       if (isGap) classNames.push("period-gap");
-      const periodEnd = day.type === "weekday" && PERIODS.some((period) => row === period.offset + 2);
-      if (periodEnd) classNames.push("period-end");
-      parts.push(`<div class="${classNames.join(" ")}" style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1};"></div>`);
+      if (PERIODS.some((period) => row === period.offset + 2)) classNames.push("period-end");
+      parts.push(`<div class="${classNames.join(" ")}" style="grid-column:${col};grid-row:${rowLine} / ${rowLine + 1};"></div>`);
     });
   }
 
-  DAYS.forEach((day) => {
-    if (day.type === "weekday") {
-      state.days[day.key].periods.forEach((period, periodIndex) => {
-        const periodMeta = PERIODS[periodIndex];
-        const startLine = coreStartRow + periodMeta.offset;
-        const endLine = startLine + 3;
-        parts.push(`<div style="grid-column:${day.column};grid-row:${startLine} / ${endLine};z-index:1;">${renderPeriodCard(day.key, periodIndex)}</div>`);
-      });
-    } else {
-      state.days[day.key].events.forEach((event, index) => {
-        const span = eventSpan(event);
-        const startLine = coreStartRow + span.startOffset;
-        const endLine = coreStartRow + span.endOffset;
-        parts.push(`<div style="grid-column:${day.column};grid-row:${startLine} / ${endLine};z-index:1;">${renderEventCard(day.key, index)}</div>`);
-      });
+  weekdayDays.forEach((day) => {
+    const col = 2 + weekdayDays.indexOf(day);
+    state.days[day.key].periods.forEach((period, periodIndex) => {
+      const meta = PERIODS[periodIndex];
+      const startLine = coreStartRow + meta.offset;
+      const endLine = startLine + 3;
+      parts.push(`<div style="grid-column:${col};grid-row:${startLine} / ${endLine};z-index:1;">${renderPeriodCard(day.key, periodIndex)}</div>`);
+    });
+
+    const layout = todoLayouts[day.key];
+    if (layout.length) {
+      const lanes = Math.max(1, ...layout.map((item) => item.lane + 1));
+      const todoCards = layout.map((item) => renderTodoCard(day.key, item.index, item.lane)).join("");
+      parts.push(`
+        <div class="weekday-todo-layer" style="grid-column:${col};grid-row:${coreStartRow} / ${afterStartRow};z-index:3;">
+          <div class="todo-subgrid" style="grid-template-columns:repeat(${lanes}, minmax(0, 1fr));grid-template-rows:repeat(${coreRows}, minmax(32px, auto));">${todoCards}</div>
+        </div>
+      `);
     }
   });
 
-  for (let row = 0; row < afterRows; row += 1) {
-    const rowLine = afterStartRow + row;
-    parts.push(`<div class="day-spacer" style="grid-column:1;grid-row:${rowLine} / ${rowLine + 1}"><span class="section-ribbon">课后</span></div>`);
-    DAYS.forEach((day) => {
-      if (day.type === "weekday") {
-        parts.push(`<div class="grid-cell extra-row-cell" style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1}"></div>`);
-        parts.push(`<div style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1};z-index:1;">${renderExtraCell(day.key, "after", row)}</div>`);
-      } else {
-        parts.push(`<div class="grid-cell extra-blank" style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1}"></div>`);
-      }
-    });
-  }
+  weekendDays.forEach((day) => {
+    const lanes = day.key === "sat" ? satLanes : sunLanes;
+    const col = day.key === "sat" ? satStart : sunStart;
+    const layout = weekendLayouts[day.key];
+    const cards = layout.map((item) => renderEventCard(day.key, item.index, item.lane)).join("");
+    parts.push(`
+      <div class="weekend-day-panel" style="grid-column:${col} / span ${lanes};grid-row:${coreStartRow} / ${afterStartRow};z-index:2;">
+        <div class="weekend-subgrid" style="grid-template-columns:repeat(${lanes}, minmax(0, 1fr));grid-template-rows:repeat(${coreRows}, minmax(32px, auto));">${cards}</div>
+      </div>
+    `);
+  });
 
   grid.innerHTML = parts.join("");
   requestAnimationFrame(() => scrollToDay(selectedDay, false));
@@ -476,12 +494,11 @@ function renderGrid() {
 function renderDayStrip() {
   const strip = document.querySelector("#dayStrip");
   strip.innerHTML = DAYS.map((day) => {
+    const dayData = state.days[day.key];
     const count =
       day.type === "weekday"
-        ? state.days[day.key].periods.filter((period) => period.mode !== "none").length +
-          state.days[day.key].before.length +
-          state.days[day.key].after.length
-        : state.days[day.key].events.length;
+        ? dayData.periods.filter((period) => period.mode !== "none").length + dayData.todos.length
+        : dayData.events.length;
     return `<button class="day-pill ${day.key === selectedDay ? "active" : ""}" type="button" data-day="${day.key}" aria-label="${day.label}，${count}项安排">
       ${day.label}<span>${count || "空"}</span>
     </button>`;
@@ -489,38 +506,12 @@ function renderDayStrip() {
 }
 
 function renderSettingsPanel() {
-  const themeButtons = document.querySelectorAll("#themeSwitch button");
-  themeButtons.forEach((button) => {
+  document.querySelectorAll("#themeSwitch button").forEach((button) => {
     button.classList.toggle("active", button.dataset.theme === state.settings.theme);
   });
-  const range = document.querySelector("#fontRange");
-  range.value = String(state.settings.fontScale);
-}
-
-function renderToolbar() {
-  const before = clampRowCount(state.extraRows.before);
-  const after = clampRowCount(state.extraRows.after);
-  document.querySelector('[data-extra-count="before"]').textContent = String(before);
-  document.querySelector('[data-extra-count="after"]').textContent = String(after);
-  document.querySelectorAll('[data-action="extra-control"]').forEach((button) => {
-    const count = button.dataset.slot === "before" ? before : after;
-    button.disabled =
-      (button.dataset.delta === "-1" && count <= 0) ||
-      (button.dataset.delta === "1" && count >= 8);
-  });
-}
-
-function setExtraRowCount(slot, delta) {
-  const current = clampRowCount(state.extraRows[slot]);
-  const next = clampRowCount(current + delta);
-  state.extraRows[slot] = next;
-  DAYS.forEach((day) => {
-    const rows = state.days[day.key][slot];
-    while (rows.length < next) rows.push({ title: "", location: "", date: "", start: "", end: "" });
-    if (rows.length > next) rows.length = next;
-  });
-  saveState();
-  renderAll();
+  document.querySelector("#fontRange").value = String(state.settings.fontScale);
+  document.querySelector("#zoomRange").value = String(state.settings.viewScale);
+  document.querySelector("#zoomValue").textContent = `${Math.round(state.settings.viewScale * 100)}%`;
 }
 
 function renderAll() {
@@ -528,7 +519,6 @@ function renderAll() {
   document.querySelector("#todayLabel").textContent = formatTodayLabel();
   renderDayStrip();
   renderGrid();
-  renderToolbar();
   renderSettingsPanel();
 }
 
@@ -556,17 +546,30 @@ function openEditor(context) {
   const content = document.querySelector("#editorContent");
   overlay.hidden = false;
   content.innerHTML = buildEditorForm(context);
-  const firstInput = content.querySelector("input, textarea");
+  const firstInput = content.querySelector("input, textarea, select");
   if (firstInput) setTimeout(() => firstInput.focus(), 80);
+}
+
+function colorPickerHtml(selected) {
+  return `<div class="field"><label>颜色</label>
+    <div class="color-picker" role="radiogroup" aria-label="颜色">
+      ${COLORS.map((color) => `<label class="color-swatch ${color.id}" title="${color.name}">
+        <input type="radio" name="color" value="${color.id}" ${selected === color.id ? "checked" : ""} />
+        <span></span>
+      </label>`).join("")}
+    </div>
+  </div>`;
+}
+
+function weekdayOptions(selectedDay) {
+  return DAYS.filter((day) => day.type === "weekday").map((day) => `<option value="${day.key}" ${day.key === selectedDay ? "selected" : ""}>${day.label}</option>`).join("");
 }
 
 function buildEditorForm(context) {
   const existing = getContextItem(context);
   const isNew = context.index === -1 || (context.kind === "period" && existing?.mode === "none");
   const title = getEditorTitle(context, isNew);
-  const mode =
-    context.mode ||
-    (existing?.mode && existing.mode !== "none" ? existing.mode : "course");
+  const mode = context.mode || (existing?.mode && existing.mode !== "none" ? existing.mode : "course");
   const data = existing?.data || existing || {};
 
   const periodSwitch =
@@ -585,15 +588,19 @@ function buildEditorForm(context) {
       <div class="field"><label for="f-course">课程名称</label><input id="f-course" name="course" value="${escapeHtml(data.course || "")}" /></div>
       <div class="field"><label for="f-location">上课地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" /></div>
       <div class="field"><label for="f-task">任务</label><textarea id="f-task" name="task">${escapeHtml(data.task || "")}</textarea></div>
+      ${colorPickerHtml(data.color || "blue")}
     `;
   } else if (context.kind === "period" && mode === "free") {
     fields = `
       <div class="field"><label for="f-title">安排</label><input id="f-title" name="title" value="${escapeHtml(data.title || "")}" /></div>
       <div class="field"><label for="f-location">地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" /></div>
       <div class="field"><label for="f-date">日期</label><input id="f-date" name="date" type="date" value="${escapeHtml(data.date || "")}" /></div>
+      ${colorPickerHtml(data.color || "teal")}
     `;
-  } else if (context.kind === "extra") {
+  } else if (context.kind === "todo") {
+    const selectedDay = context.day || "mon";
     fields = `
+      <div class="field"><label for="f-day">星期</label><select id="f-day" name="day">${weekdayOptions(selectedDay)}</select></div>
       <div class="field"><label for="f-title">待办内容</label><input id="f-title" name="title" value="${escapeHtml(data.title || "")}" /></div>
       <div class="field"><label for="f-location">地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" /></div>
       <div class="field"><label for="f-date">日期</label><input id="f-date" name="date" type="date" value="${escapeHtml(data.date || "")}" /></div>
@@ -601,6 +608,7 @@ function buildEditorForm(context) {
         <div class="field"><label for="f-start">开始时间</label><input id="f-start" name="start" type="time" value="${escapeHtml(data.start || "")}" /></div>
         <div class="field"><label for="f-end">结束时间</label><input id="f-end" name="end" type="time" value="${escapeHtml(data.end || "")}" /></div>
       </div>
+      ${colorPickerHtml(data.color || "green")}
     `;
   } else if (context.kind === "weekend") {
     fields = `
@@ -611,6 +619,7 @@ function buildEditorForm(context) {
       </div>
       <div class="field"><label for="f-content">内容</label><input id="f-content" name="content" value="${escapeHtml(data.content || "")}" /></div>
       <div class="field"><label for="f-location">地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" /></div>
+      ${colorPickerHtml(data.color || "orange")}
     `;
   }
 
@@ -640,25 +649,25 @@ function buildEditorForm(context) {
 function getContextItem(context) {
   const day = state.days[context.day];
   if (context.kind === "period") return day.periods[context.period];
-  if (context.kind === "extra") return day[context.slot][context.index];
+  if (context.kind === "todo") return day.todos[context.index];
   if (context.kind === "weekend") return day.events[context.index];
   return null;
 }
 
 function getEditorEyebrow(context) {
-  const dayLabel = DAYS.find((item) => item.key === context.day).label;
+  const dayLabel = DAYS.find((item) => item.key === context.day)?.label || "";
   if (context.kind === "period") {
     return `${dayLabel} · ${PERIODS[context.period].start}-${PERIODS[context.period].end}`;
   }
-  if (context.kind === "extra") {
-    return `${dayLabel} · ${context.slot === "before" ? "课前待办" : "课后待办"}`;
+  if (context.kind === "todo") {
+    return `${dayLabel} · 待办`;
   }
   return `${dayLabel} · 周末活动`;
 }
 
 function getEditorTitle(context, isNew) {
   if (context.kind === "period") return isNew ? "添加安排" : "编辑安排";
-  if (context.kind === "extra") return isNew ? "添加待办" : "编辑待办";
+  if (context.kind === "todo") return isNew ? "添加待办" : "编辑待办";
   return isNew ? "添加活动" : "编辑活动";
 }
 
@@ -685,21 +694,27 @@ function saveEditor() {
         task: String(formData.get("task") || "").trim(),
         title: String(formData.get("title") || "").trim(),
         date: String(formData.get("date") || ""),
+        color: String(formData.get("color") || "blue"),
         taskOpen: day.periods[context.period]?.data?.taskOpen === true
       }
     };
-  } else if (context.kind === "extra") {
+  } else if (context.kind === "todo") {
+    const targetDay = String(formData.get("day") || context.day);
     const item = {
       title: String(formData.get("title") || "").trim(),
       location: String(formData.get("location") || "").trim(),
       date: String(formData.get("date") || ""),
       start: String(formData.get("start") || ""),
-      end: String(formData.get("end") || "")
+      end: String(formData.get("end") || ""),
+      color: String(formData.get("color") || "green")
     };
     if (context.index === -1) {
-      day[context.slot].push(item);
+      state.days[targetDay].todos.push(item);
+    } else if (targetDay === context.day) {
+      state.days[targetDay].todos[context.index] = item;
     } else {
-      day[context.slot][context.index] = item;
+      state.days[context.day].todos.splice(context.index, 1);
+      state.days[targetDay].todos.push(item);
     }
   } else if (context.kind === "weekend") {
     const item = {
@@ -707,7 +722,8 @@ function saveEditor() {
       start: String(formData.get("start") || ""),
       end: String(formData.get("end") || ""),
       content: String(formData.get("content") || "").trim(),
-      location: String(formData.get("location") || "").trim()
+      location: String(formData.get("location") || "").trim(),
+      color: String(formData.get("color") || "orange")
     };
     if (context.index === -1) {
       day.events.push(item);
@@ -728,8 +744,8 @@ function deleteEditorItem() {
   const day = state.days[context.day];
   if (context.kind === "period") {
     day.periods[context.period] = emptyPeriod();
-  } else if (context.kind === "extra") {
-    day[context.slot].splice(context.index, 1);
+  } else if (context.kind === "todo") {
+    day.todos.splice(context.index, 1);
   } else if (context.kind === "weekend") {
     day.events.splice(context.index, 1);
   }
@@ -765,10 +781,10 @@ function bindEvents() {
   document.querySelector("#weekGrid").addEventListener("click", (event) => {
     const actionTarget = event.target.closest("[data-action]");
     if (!actionTarget) return;
-    const { action, day, period, slot, index } = actionTarget.dataset;
-
-    if (action === "extra-control") {
-      setExtraRowCount(slot, Number(actionTarget.dataset.delta));
+    const { action, day, period, index } = actionTarget.dataset;
+    if (action === "open-todo-new") {
+      const defaultDay = DAYS.find((item) => item.key === selectedDay && item.type === "weekday") ? selectedDay : "mon";
+      openEditor({ kind: "todo", day: defaultDay, index: -1 });
     } else if (action === "open-weekend" && actionTarget.classList.contains("head-add")) {
       openEditor({ kind: "weekend", day, index: Number(index) });
     } else if (action === "toggle-task") {
@@ -784,11 +800,11 @@ function bindEvents() {
     if (event.target.closest(".task-toggle") || event.target.closest(".head-add")) return;
     const actionTarget = event.target.closest("[data-action]");
     if (!actionTarget) return;
-    const { action, day, period, slot, index } = actionTarget.dataset;
+    const { action, day, period, index } = actionTarget.dataset;
     if (action === "open-period") {
       openEditor({ kind: "period", day, period: Number(period) });
-    } else if (action === "open-extra") {
-      openEditor({ kind: "extra", day, slot, index: Number(index) });
+    } else if (action === "open-todo") {
+      openEditor({ kind: "todo", day, index: Number(index) });
     } else if (action === "open-weekend") {
       openEditor({ kind: "weekend", day, index: Number(index) });
     }
@@ -842,6 +858,17 @@ function bindEvents() {
   document.querySelector("#fontRange").addEventListener("change", () => {
     saveState();
     showToast("字号已调整");
+  });
+
+  document.querySelector("#zoomRange").addEventListener("input", (event) => {
+    state.settings.viewScale = Number(event.target.value);
+    applySettings();
+    renderSettingsPanel();
+  });
+
+  document.querySelector("#zoomRange").addEventListener("change", () => {
+    saveState();
+    showToast("缩放已调整");
   });
 }
 
