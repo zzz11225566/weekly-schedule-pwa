@@ -40,7 +40,9 @@ function createWeekday() {
 function createWeekend() {
   return {
     type: "weekend",
-    events: []
+    events: [],
+    before: [],
+    after: []
   };
 }
 
@@ -55,7 +57,11 @@ function createDefaultState() {
       theme: "light",
       fontScale: 1
     },
-    days
+    days,
+    extraRows: {
+      before: 1,
+      after: 1
+    }
   };
 }
 
@@ -86,7 +92,9 @@ function normalizeDay(rawDay, type) {
   }
   return {
     type: "weekend",
-    events: Array.isArray(rawDay.events) ? rawDay.events : []
+    events: Array.isArray(rawDay.events) ? rawDay.events : [],
+    before: Array.isArray(rawDay.before) ? rawDay.before : [],
+    after: Array.isArray(rawDay.after) ? rawDay.after : []
   };
 }
 
@@ -98,6 +106,9 @@ function loadState() {
     DAYS.forEach((day) => {
       days[day.key] = normalizeDay(raw.days?.[day.key], day.type);
     });
+    const weekdayKeys = DAYS.filter((day) => day.type === "weekday").map((day) => day.key);
+    const existingBefore = Math.max(1, ...weekdayKeys.map((key) => days[key].before.length));
+    const existingAfter = Math.max(1, ...weekdayKeys.map((key) => days[key].after.length));
     return {
       version: 1,
       settings: {
@@ -107,11 +118,20 @@ function loadState() {
             ? Math.min(1.25, Math.max(0.85, raw.settings.fontScale))
             : 1
       },
-      days
+      days,
+      extraRows: {
+        before: clampRowCount(raw.extraRows?.before ?? existingBefore),
+        after: clampRowCount(raw.extraRows?.after ?? existingAfter)
+      }
     };
   } catch {
     return createDefaultState();
   }
+}
+
+function clampRowCount(value) {
+  if (!Number.isFinite(Number(value))) return 1;
+  return Math.min(8, Math.max(0, Number(value)));
 }
 
 let state = loadState();
@@ -236,6 +256,15 @@ function line(label, value, toneClass, { strong = false, iconName = "" } = {}) {
   return `<div class="card-line ${toneClass}">${iconMarkup}<span>${strong ? "<strong>" : ""}${escapeHtml(label)}${escapeHtml(value)}${strong ? "</strong>" : ""}</span></div>`;
 }
 
+function hasExtraContent(item) {
+  if (!item) return false;
+  return Boolean(item.title || item.location || item.date);
+}
+
+function renderBlankCell(action, attrs = "") {
+  return `<div class="slot-card blank-cell" role="button" tabindex="0" data-action="${action}" ${attrs}></div>`;
+}
+
 function renderPeriodCard(dayKey, periodIndex) {
   const day = state.days[dayKey];
   const period = day.periods[periodIndex];
@@ -243,7 +272,7 @@ function renderPeriodCard(dayKey, periodIndex) {
   const time = PERIODS[periodIndex];
 
   if (period.mode === "none") {
-    return `<button class="slot-card empty-add" type="button" data-action="open-period" data-day="${dayKey}" data-period="${periodIndex}">${icon("plus")}</button>`;
+    return renderBlankCell("open-period", `data-day="${dayKey}" data-period="${periodIndex}"`);
   }
 
   const isCourse = period.mode === "course";
@@ -283,6 +312,13 @@ function renderExtraCard(dayKey, slot, index) {
   </div>`;
 }
 
+function renderExtraCell(dayKey, slot, index) {
+  const item = state.days[dayKey][slot]?.[index];
+  return hasExtraContent(item)
+    ? renderExtraCard(dayKey, slot, index)
+    : renderBlankCell("open-extra", `data-day="${dayKey}" data-slot="${slot}" data-index="${index}"`);
+}
+
 function renderEventCard(dayKey, index) {
   const event = state.days[dayKey].events[index];
   const timeText = event.start || event.end ? `${event.start || "未填"}-${event.end || "未填"}` : "时间未填";
@@ -297,19 +333,17 @@ function renderEventCard(dayKey, index) {
 
 function renderGrid() {
   const weekDates = getWeekDates();
-  const weekdayDays = DAYS.filter((day) => day.type === "weekday");
-  const maxBefore = Math.max(1, ...weekdayDays.map((day) => state.days[day.key].before.length));
-  const maxAfter = Math.max(1, ...weekdayDays.map((day) => state.days[day.key].after.length));
-  const coreStartRow = 2 + maxBefore;
+  const beforeRows = clampRowCount(state.extraRows.before);
+  const afterRows = clampRowCount(state.extraRows.after);
+  const coreStartRow = 2 + beforeRows;
   const coreRows = CORE_HALF_ROWS;
   const afterStartRow = coreStartRow + coreRows;
   const grid = document.querySelector("#weekGrid");
-  grid.style.gridTemplateRows = [
-    "48px",
-    `repeat(${maxBefore}, minmax(46px, auto))`,
-    `repeat(${coreRows}, minmax(32px, auto))`,
-    `repeat(${maxAfter}, minmax(46px, auto))`
-  ].join(" ");
+  const rowTracks = ["48px"];
+  if (beforeRows > 0) rowTracks.push(`repeat(${beforeRows}, minmax(46px, auto))`);
+  rowTracks.push(`repeat(${coreRows}, minmax(32px, auto))`);
+  if (afterRows > 0) rowTracks.push(`repeat(${afterRows}, minmax(46px, auto))`);
+  grid.style.gridTemplateRows = rowTracks.join(" ");
 
   const parts = [];
   parts.push(`<div class="grid-head corner"><span>时间</span></div>`);
@@ -328,20 +362,13 @@ function renderGrid() {
     `);
   });
 
-  for (let row = 0; row < maxBefore; row += 1) {
-    const rowLine = coreStartRow - maxBefore + row;
+  for (let row = 0; row < beforeRows; row += 1) {
+    const rowLine = coreStartRow - beforeRows + row;
     parts.push(`<div class="day-spacer" style="grid-column:1;grid-row:${rowLine} / ${rowLine + 1}"><span class="section-ribbon">课前</span></div>`);
     DAYS.forEach((day) => {
-      const item = state.days[day.key].before?.[row];
       const baseClass = day.type === "weekend" ? "grid-cell weekend" : "grid-cell";
       parts.push(`<div class="${baseClass}" style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1}"></div>`);
-      if (day.type === "weekday") {
-        parts.push(
-          item
-            ? `<div style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1};z-index:1;">${renderExtraCard(day.key, "before", row)}</div>`
-            : `<button class="slot-card empty-add" style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1};z-index:1;" type="button" data-action="open-extra" data-day="${day.key}" data-slot="before" data-index="-1">${icon("plus")}</button>`
-        );
-      }
+      parts.push(`<div style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1};z-index:1;">${renderExtraCell(day.key, "before", row)}</div>`);
     });
   }
 
@@ -380,20 +407,13 @@ function renderGrid() {
     }
   });
 
-  for (let row = 0; row < maxAfter; row += 1) {
+  for (let row = 0; row < afterRows; row += 1) {
     const rowLine = afterStartRow + row;
     parts.push(`<div class="day-spacer" style="grid-column:1;grid-row:${rowLine} / ${rowLine + 1}"><span class="section-ribbon">课后</span></div>`);
     DAYS.forEach((day) => {
-      const item = state.days[day.key].after?.[row];
       const baseClass = day.type === "weekend" ? "grid-cell weekend" : "grid-cell";
       parts.push(`<div class="${baseClass}" style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1}"></div>`);
-      if (day.type === "weekday") {
-        parts.push(
-          item
-            ? `<div style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1};z-index:1;">${renderExtraCard(day.key, "after", row)}</div>`
-            : `<button class="slot-card empty-add" style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1};z-index:1;" type="button" data-action="open-extra" data-day="${day.key}" data-slot="after" data-index="-1">${icon("plus")}</button>`
-        );
-      }
+      parts.push(`<div style="grid-column:${day.column};grid-row:${rowLine} / ${rowLine + 1};z-index:1;">${renderExtraCell(day.key, "after", row)}</div>`);
     });
   }
 
@@ -409,7 +429,9 @@ function renderDayStrip() {
         ? state.days[day.key].periods.filter((period) => period.mode !== "none").length +
           state.days[day.key].before.length +
           state.days[day.key].after.length
-        : state.days[day.key].events.length;
+        : state.days[day.key].events.length +
+          state.days[day.key].before.length +
+          state.days[day.key].after.length;
     return `<button class="day-pill ${day.key === selectedDay ? "active" : ""}" type="button" data-day="${day.key}" aria-label="${day.label}，${count}项安排">
       ${day.label}<span>${count || "空"}</span>
     </button>`;
@@ -425,10 +447,35 @@ function renderSettingsPanel() {
   range.value = String(state.settings.fontScale);
 }
 
+function renderToolbar() {
+  const before = clampRowCount(state.extraRows.before);
+  const after = clampRowCount(state.extraRows.after);
+  document.querySelector("#beforeCount").textContent = String(before);
+  document.querySelector("#afterCount").textContent = String(after);
+  document.querySelector("#beforeMinus").disabled = before <= 0;
+  document.querySelector("#afterMinus").disabled = after <= 0;
+  document.querySelector("#beforePlus").disabled = before >= 8;
+  document.querySelector("#afterPlus").disabled = after >= 8;
+}
+
+function setExtraRowCount(slot, delta) {
+  const current = clampRowCount(state.extraRows[slot]);
+  const next = clampRowCount(current + delta);
+  state.extraRows[slot] = next;
+  DAYS.forEach((day) => {
+    const rows = state.days[day.key][slot];
+    while (rows.length < next) rows.push({ title: "", location: "", date: "" });
+    if (rows.length > next) rows.length = next;
+  });
+  saveState();
+  renderAll();
+}
+
 function renderAll() {
   applySettings();
   document.querySelector("#todayLabel").textContent = formatTodayLabel();
   renderDayStrip();
+  renderToolbar();
   renderGrid();
   renderSettingsPanel();
 }
@@ -483,20 +530,20 @@ function buildEditorForm(context) {
   let fields = "";
   if (context.kind === "period" && mode === "course") {
     fields = `
-      <div class="field"><label for="f-course">课程名称</label><input id="f-course" name="course" value="${escapeHtml(data.course || "")}" placeholder="例如：高等数学" /></div>
-      <div class="field"><label for="f-location">上课地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" placeholder="例如：教学楼 A201" /></div>
-      <div class="field"><label for="f-task">任务</label><textarea id="f-task" name="task" placeholder="每行一个任务；在课表中点“任务”查看">${escapeHtml(data.task || "")}</textarea></div>
+      <div class="field"><label for="f-course">课程名称</label><input id="f-course" name="course" value="${escapeHtml(data.course || "")}" /></div>
+      <div class="field"><label for="f-location">上课地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" /></div>
+      <div class="field"><label for="f-task">任务</label><textarea id="f-task" name="task">${escapeHtml(data.task || "")}</textarea></div>
     `;
   } else if (context.kind === "period" && mode === "free") {
     fields = `
-      <div class="field"><label for="f-title">安排</label><input id="f-title" name="title" value="${escapeHtml(data.title || "")}" placeholder="例如：自习 / 社团" /></div>
-      <div class="field"><label for="f-location">地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" placeholder="例如：图书馆" /></div>
+      <div class="field"><label for="f-title">安排</label><input id="f-title" name="title" value="${escapeHtml(data.title || "")}" /></div>
+      <div class="field"><label for="f-location">地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" /></div>
       <div class="field"><label for="f-date">日期</label><input id="f-date" name="date" type="date" value="${escapeHtml(data.date || "")}" /></div>
     `;
   } else if (context.kind === "extra") {
     fields = `
-      <div class="field"><label for="f-title">待办内容</label><input id="f-title" name="title" value="${escapeHtml(data.title || "")}" placeholder="例如：交作业 / 取快递" /></div>
-      <div class="field"><label for="f-location">地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" placeholder="例如：菜鸟驿站" /></div>
+      <div class="field"><label for="f-title">待办内容</label><input id="f-title" name="title" value="${escapeHtml(data.title || "")}" /></div>
+      <div class="field"><label for="f-location">地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" /></div>
       <div class="field"><label for="f-date">日期</label><input id="f-date" name="date" type="date" value="${escapeHtml(data.date || "")}" /></div>
     `;
   } else if (context.kind === "weekend") {
@@ -506,8 +553,8 @@ function buildEditorForm(context) {
         <div class="field"><label for="f-start">开始时间</label><input id="f-start" name="start" type="time" value="${escapeHtml(data.start || "09:00")}" /></div>
         <div class="field"><label for="f-end">结束时间</label><input id="f-end" name="end" type="time" value="${escapeHtml(data.end || "10:30")}" /></div>
       </div>
-      <div class="field"><label for="f-content">内容</label><input id="f-content" name="content" value="${escapeHtml(data.content || "")}" placeholder="例如：和同学聚餐" /></div>
-      <div class="field"><label for="f-location">地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" placeholder="例如：学校东门" /></div>
+      <div class="field"><label for="f-content">内容</label><input id="f-content" name="content" value="${escapeHtml(data.content || "")}" /></div>
+      <div class="field"><label for="f-location">地点</label><input id="f-location" name="location" value="${escapeHtml(data.location || "")}" /></div>
     `;
   }
 
@@ -657,16 +704,17 @@ function bindEvents() {
     if (button) scrollToDay(button.dataset.day);
   });
 
+  document.querySelector("#beforePlus").addEventListener("click", () => setExtraRowCount("before", 1));
+  document.querySelector("#beforeMinus").addEventListener("click", () => setExtraRowCount("before", -1));
+  document.querySelector("#afterPlus").addEventListener("click", () => setExtraRowCount("after", 1));
+  document.querySelector("#afterMinus").addEventListener("click", () => setExtraRowCount("after", -1));
+
   document.querySelector("#weekGrid").addEventListener("click", (event) => {
     const actionTarget = event.target.closest("[data-action]");
     if (!actionTarget) return;
     const { action, day, period, slot, index } = actionTarget.dataset;
 
-    if (action === "open-period") {
-      openEditor({ kind: "period", day, period: Number(period) });
-    } else if (action === "open-extra") {
-      openEditor({ kind: "extra", day, slot, index: Number(index) });
-    } else if (action === "open-weekend") {
+    if (action === "open-weekend" && actionTarget.classList.contains("head-add")) {
       openEditor({ kind: "weekend", day, index: Number(index) });
     } else if (action === "toggle-task") {
       event.stopPropagation();
@@ -677,11 +725,25 @@ function bindEvents() {
     }
   });
 
+  document.querySelector("#weekGrid").addEventListener("dblclick", (event) => {
+    if (event.target.closest(".task-toggle") || event.target.closest(".head-add")) return;
+    const actionTarget = event.target.closest("[data-action]");
+    if (!actionTarget) return;
+    const { action, day, period, slot, index } = actionTarget.dataset;
+    if (action === "open-period") {
+      openEditor({ kind: "period", day, period: Number(period) });
+    } else if (action === "open-extra") {
+      openEditor({ kind: "extra", day, slot, index: Number(index) });
+    } else if (action === "open-weekend") {
+      openEditor({ kind: "weekend", day, index: Number(index) });
+    }
+  });
+
   document.querySelector("#weekGrid").addEventListener("keydown", (event) => {
     const card = event.target.closest('.slot-card[role="button"]');
     if (!card || (event.key !== "Enter" && event.key !== " ")) return;
     event.preventDefault();
-    card.click();
+    card.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
   });
 
   document.querySelector("#editorContent").addEventListener("click", (event) => {
