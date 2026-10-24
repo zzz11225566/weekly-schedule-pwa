@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=0.2, maximum-scale=3, user-scalable=yes, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f7f5" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -67,6 +67,12 @@
           </div>
         </div>
         <div class="topbar-actions">
+          <button class="icon-btn" id="coursesBtn" type="button" aria-label="管理课程" title="课程">
+            <svg><use href="#i-list"></use></svg>
+          </button>
+          <button class="icon-btn" id="weekBtn" type="button" aria-label="选择周" title="周">
+            <svg><use href="#i-calendar"></use></svg>
+          </button>
           <button class="icon-btn" id="shareBtn" type="button" aria-label="分享给同学" title="分享">
             <svg><use href="#i-share"></use></svg>
           </button>
@@ -138,12 +144,68 @@
             </div>
             <div class="zoom-value" id="zoomValue">100%</div>
           </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              <h3>未安排周的课程</h3>
+              <p>在课程没有安排到的周显示虚线框。</p>
+            </div>
+            <label class="switch-row"><input type="checkbox" id="unselectedCourses" /><span>显示虚线框</span></label>
+          </div>
+          <div class="setting-row">
+            <div class="setting-copy">
+              <h3>未安排周的待办</h3>
+              <p>在待办没有安排到的周显示虚线框。</p>
+            </div>
+            <label class="switch-row"><input type="checkbox" id="unselectedTodos" /><span>显示虚线框</span></label>
+          </div>
           <div class="settings-note">
             <span class="note-dot" aria-hidden="true"></span>
             所有内容只保存在这台设备的浏览器中，关闭 App 后仍会保留。
           </div>
         </div>
       </section>
+    </div>
+
+    <div class="overlay" id="coursesOverlay" hidden>
+      <section class="bottom-sheet courses-sheet" role="dialog" aria-modal="true" aria-labelledby="coursesTitle">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="courses-head">
+          <div>
+            <p class="eyebrow">课程系统</p>
+            <h2 id="coursesTitle">我的课程</h2>
+          </div>
+          <button class="icon-btn" id="closeCourses" type="button" aria-label="关闭课程系统">
+            <svg><use href="#i-close"></use></svg>
+          </button>
+        </div>
+        <div class="courses-body" id="coursesBody"></div>
+      </section>
+    </div>
+
+    <div class="overlay" id="weekOverlay" hidden>
+      <section class="bottom-sheet week-sheet" role="dialog" aria-modal="true" aria-labelledby="weekTitle">
+        <div class="sheet-handle" aria-hidden="true"></div>
+        <div class="courses-head">
+          <div>
+            <p class="eyebrow">日期系统</p>
+            <h2 id="weekTitle">选择周次</h2>
+          </div>
+          <button class="icon-btn" id="closeWeek" type="button" aria-label="关闭周次选择">
+            <svg><use href="#i-close"></use></svg>
+          </button>
+        </div>
+        <div class="week-body" id="weekBody"></div>
+      </section>
+    </div>
+
+    <div class="memo-dock" id="memoDock">
+      <button class="memo-handle" type="button" aria-label="展开备忘录">
+        <span></span>
+      </button>
+      <div class="memo-panel">
+        <div class="memo-title">备忘录</div>
+        <textarea id="memoInput" placeholder="写点什么"></textarea>
+      </div>
     </div>
 
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
